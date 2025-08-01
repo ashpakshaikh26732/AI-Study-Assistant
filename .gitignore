@@ -1,0 +1,55 @@
+# =================================================================
+# Gitignore for AI Study Assistant Project
+# =================================================================
+
+# --- User-Specific Rule ---
+# Ignore the entire data directory, including raw notes,
+# processed text files, and the vector store.
+# This is the most important rule for your project to prevent
+# committing large data files to your repository.
+data/
+
+
+# --- Python Virtual Environments ---
+# Ignore common virtual environment folders.
+# This ensures your local environment setup isn't committed.
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+
+# --- Python Cache Files ---
+# Ignore Python's bytecode and cache directories.
+# These are generated automatically at runtime and don't need to be versioned.
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# --- IDE and Editor Directories ---
+# Ignore configuration files from popular editors and IDEs.
+# This keeps your personal editor settings out of the project repository.
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+# --- Operating System Files ---
+# Ignore OS-specific files that can be created in project directories.
+.DS_Store
+Thumbs.db
+
+
+# --- Build and Distribution Artifacts ---
+# Ignore files related to building and distributing Python packages.
+# While not immediately needed, it's good practice to include these.
+/dist/
+/build/
+*.egg-info/
+*.egg
+
