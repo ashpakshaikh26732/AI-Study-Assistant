@@ -1,0 +1,8 @@
+langchain
+chromadb
+pytesseract
+PyMuPDF
+Pillow
+streamlit
+numpy
+
