@@ -3,4 +3,8 @@ data :
     processed_path : "data/processed" 
     ocr_file_path: "data/ocr_temp_images"
     
-    
+rag_core : 
+    chunking : 
+        chunk_size: 1000
+        chunk_overlap: 100
+        

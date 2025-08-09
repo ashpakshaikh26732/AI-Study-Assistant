@@ -1,4 +1,8 @@
-import re
+import re,sys
+
+repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
+sys.path.append(repo_path)
+
 def clearning_fn(text) : 
     """
     Cleans raw extracted text by performing a series of normalization tasks.
