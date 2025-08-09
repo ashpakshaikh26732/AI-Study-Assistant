@@ -5,4 +5,4 @@ PyMuPDF
 Pillow
 streamlit
 numpy
-
+PyYAML

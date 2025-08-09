@@ -1,0 +1,6 @@
+data : 
+    raw_path : 'data/raw' 
+    processed_path : "data/processed" 
+    ocr_file_path: "data/ocr_temp_images"
+    
+    
