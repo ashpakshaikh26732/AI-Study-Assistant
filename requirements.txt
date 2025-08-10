@@ -6,3 +6,6 @@ Pillow
 streamlit
 numpy
 PyYAML
+langchain-chroma
+langchain-huggingface 
+sentence_transformers
