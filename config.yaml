@@ -7,4 +7,12 @@ rag_core :
     chunking : 
         chunk_size: 1000
         chunk_overlap: 100
-        
+    embedding:
+        model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    database:
+        persist_directory: "data/vector_store"
+        collection_name: "study_notes"
+    retriever:
+        k: 5
+    generator:
+        llm_name: "mistralai/Mistral-7B-Instruct-v0.2" 
