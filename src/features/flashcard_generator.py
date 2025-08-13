@@ -1,3 +1,9 @@
+import sys
+
+repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
+if repo_path not in sys.path:
+    sys.path.append(repo_path)
+
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.pydantic_v1 import BaseModel, Field
