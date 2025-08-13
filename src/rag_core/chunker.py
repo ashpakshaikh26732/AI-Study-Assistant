@@ -44,13 +44,13 @@ def chunk_single_document(file_path, config):
             'source': file_path,
             'specialization': path_data[0],
             'course': path_data[1],
-            'notes_type': os.path.splitext(path_data[2])[0]
+            'notes_type': path_data[2]
         }
     elif len(path_data) == 2:
         meta_data = {
             'source': file_path,
             'course': path_data[0],
-            'notes_type': os.path.splitext(path_data[1])[0]
+            'notes_type': path_data[2]
         }
 
     text_splitter = RecursiveCharacterTextSplitter(
