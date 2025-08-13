@@ -9,9 +9,10 @@ if repo_path not in sys.path:
 
 from src.rag_core.retriever import create_retriever
 from src.features.generator import create_qa_chain
+from src.llm.model_loader import load_llm
 
 @st.cache_resource
-def load_qa_chain(config_path="config.yaml"):
+def load_all_components(config_path="config.yaml"):
     """
     Loads the QA chain once and caches it for the entire session.
 
@@ -30,7 +31,8 @@ def load_qa_chain(config_path="config.yaml"):
     print("Loading QA chain... (This should only happen once per session)")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
-    
+
+    llm = load_llm(config)
     retriever = create_retriever(config)
     qa_chain = create_qa_chain(retriever, config)
     return qa_chain
@@ -40,7 +42,7 @@ st.set_page_config(page_title="AI Study Assistant", layout="wide")
 st.title("AI Study Assistant 🤖")
 
 
-qa_chain = load_qa_chain()
+qa_chain = load_all_components()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
