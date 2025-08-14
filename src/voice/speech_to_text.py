@@ -1,3 +1,9 @@
+import sys
+
+repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
+if repo_path not in sys.path:
+    sys.path.append(repo_path)
+    
 from transformers import pipeline
 
 def load_whisper_model(config):
