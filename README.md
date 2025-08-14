@@ -133,8 +133,10 @@ It is highly recommended to use a virtual environment.    python -m venv venv
 
 ## 👤 Author
 
-# **Ashpak Jabbar Shaikh*** [LinkedIn](https://www.google.com/search?q=https://www.linkedin.com/in/ashpak-shaikh-88a7372b0?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BCQ%2BNCzzzTF2LhNm6AF01yQ%3D%3D "null")
+# Ashpak Jabbar Shaikh 
+* [LinkedIn]([https://www.linkedin.com/in/YOUR_LINKEDIN_PROFILE_URL/](https://www.linkedin.com/in/ashpak-shaikh-88a7372b0?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BZtRhagQ2TH22qblYwvMq4Q%3D%3D))
+* [GitHub](https://github.com/ashpakshaikh26732/)
 
-* \[GitHub]\(
+
 
 
