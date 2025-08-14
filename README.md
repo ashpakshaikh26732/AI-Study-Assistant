@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/LangChain-Powered-green" alt="LangChain">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
 </p>
-The ****AI Study Assistant**** is a full-stack, multi-modal application designed to transform your personal study notes into an interactive and adaptive learning experience. Built from the ground up with open-source models and a modular architecture, this project serves as both a powerful study tool and a comprehensive blueprint for building modern AI systems.It ingests your typed and handwritten notes, understands the content, and helps you learn through intelligent Q\&A, summarization, and personalized quizzes that adapt to your learning patterns.
+The **AI Study Assistant** is a full-stack, multi-modal application designed to transform your personal study notes into an interactive and adaptive learning experience. Built from the ground up with open-source models and a modular architecture, this project serves as both a powerful study tool and a comprehensive blueprint for building modern AI systems.It ingests your typed and handwritten notes, understands the content, and helps you learn through intelligent Q\&A, summarization, and personalized quizzes that adapt to your learning patterns.
 
 ## 🚀 Key Features
 
@@ -136,4 +136,5 @@ It is highly recommended to use a virtual environment.    python -m venv venv
 # **Ashpak Jabbar Shaikh*** [LinkedIn](https://www.google.com/search?q=https://www.linkedin.com/in/ashpak-shaikh-88a7372b0?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BCQ%2BNCzzzTF2LhNm6AF01yQ%3D%3D "null")
 
 * \[GitHub]\(
+
 
