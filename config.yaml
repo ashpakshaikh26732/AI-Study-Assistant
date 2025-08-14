@@ -3,10 +3,10 @@ data :
     processed_path : "data/processed" 
     ocr_file_path: "data/ocr_temp_images"
 
+    
 memory : 
     sqlite_database_path : 'data/memory.db'
     limit : 3
-    
 rag_core : 
     chunking : 
         chunk_size: 1000
@@ -24,3 +24,6 @@ rag_core :
 features:
     quiz:
         similarity_threshold: 0.85
+
+voice:
+    whisper_model: "openai/whisper-base"
