@@ -87,7 +87,7 @@ def process_all_documents(config):
 
     for root, dirs, files in os.walk(raw_data_folder):
         if len(files) > 0:
-            # Create the corresponding directory in the processed folder
+
             save_path = root.replace("raw", "processed")
             os.makedirs(save_path, exist_ok=True)
 
@@ -96,21 +96,20 @@ def process_all_documents(config):
                     file_path = os.path.join(root, single_file)
                     print(f"Processing: {file_path}")
 
-                    # Step 1: Attempt direct text extraction
+
                     text = extract_text_from_pdf(file_path)
 
-                    # Step 2: If direct extraction yields little text, fall back to OCR
+
                     if len(text) < 200:
                         print("    --> Low text yield. Falling back to OCR...")
                         text = ocr_pdf(file_path=file_path, config=config)
 
-                    # Step 3: Clean the extracted text
+
                     clean_text = cleaining_fn(text)
 
-                    # Step 4 (Optional): Extract metadata from the path
-                    # This part can be enhanced later if needed.
+
                     path_data = root.split(os.sep)
-                    path_data = path_data[2:] # Adjust this index based on your root path
+                    path_data = path_data[2:] 
                     meta_data = {}
                     if len(path_data) > 2:
                         meta_data = {
@@ -124,7 +123,7 @@ def process_all_documents(config):
                             'notes_type': path_data[1]
                         }
 
-                    # Step 5: Save the cleaned text to a .txt file
+
                     file_name = f'{os.path.splitext(single_file)[0]}.txt'
                     full_file_path = os.path.join(save_path, file_name)
                     
