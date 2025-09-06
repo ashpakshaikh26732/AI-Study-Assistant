@@ -3,8 +3,7 @@ import os
 import yaml
 import argparse
 
-
-repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '.'))
+repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
 if repo_path not in sys.path:
     sys.path.append(repo_path)
 

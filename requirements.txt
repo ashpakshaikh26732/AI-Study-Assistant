@@ -11,3 +11,4 @@ langchain-huggingface
 sentence_transformers
 streamlit
 streamlit-mic-recorder
+pytest
