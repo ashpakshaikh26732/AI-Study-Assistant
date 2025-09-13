@@ -21,9 +21,8 @@ The **AI Study Assistant** is a full-stack, multi-modal application designed to 
 
 * ****🎯 Adaptive Learning & Memory:**** The assistant remembers your mistakes! It logs incorrect quiz answers to a local database, allowing it to provide personalized feedback on your weak topics.
 
-## 🎬 Demo
+<img width="1366" height="768" alt="Screenshot from 2025-09-13 15-51-19" src="https://github.com/user-attachments/assets/9367a596-d1a4-4887-b1f3-b10e704b0d49" />
 
-# __(This__ is where you can embed a short video or GIFs showcasing the application __in action.)__Main Q\&A Interface:\[DEMO GIF OF CHATBOT HERE]Study Tools (Summarizer, Flashcards, Quiz):\[DEMO GIF OF SIDEBAR TOOLS HERE]
 
 ## 🛠️ Tech Stack & Architecture
 
@@ -136,6 +135,7 @@ It is highly recommended to use a virtual environment.    python -m venv venv
 # Ashpak Jabbar Shaikh 
 * [LinkedIn]([https://www.linkedin.com/in/YOUR_LINKEDIN_PROFILE_URL/](https://www.linkedin.com/in/ashpak-shaikh-88a7372b0?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3BZtRhagQ2TH22qblYwvMq4Q%3D%3D))
 * [GitHub](https://github.com/ashpakshaikh26732/)
+
 
 
 
