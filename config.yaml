@@ -1,29 +1,72 @@
-data : 
-    raw_path : 'data/raw' 
-    processed_path : "data/processed" 
-    ocr_file_path: "data/ocr_temp_images"
+# AI Study Assistant - default configuration.
+#
+# Don't edit this file for personal setups. Put your overrides in
+# `config.local.yaml` (git-ignored, same structure, only the keys you change).
+# Relative paths are resolved from the project root, not the current directory.
 
-    
-memory : 
-    sqlite_database_path : 'data/memory.db'
-    limit : 3
-rag_core : 
-    chunking : 
-        chunk_size: 1000
-        chunk_overlap: 100
-    embedding:
-        model_name: "sentence-transformers/all-MiniLM-L6-v2"
-    database:
-        persist_directory: "data/vector_store"
-        collection_name: "study_notes"
-    retriever:
-        k: 5
-    generator:
-        llm_name: "mistralai/Mistral-7B-Instruct-v0.3" 
+data:
+  raw_path: data/raw                # your original PDFs: <Specialization>/<Course>/<NotesType>/file.pdf
+  processed_path: data/processed    # cleaned .txt/.md files - this is what gets indexed
+  cache_path: data/cache            # cached summaries / flashcards
+  ocr_file_path: data/ocr_temp_images   # legacy setting, no longer used (OCR renders pages in memory)
+
+ocr:
+  enabled: true                     # OCR pages that have no selectable text (needs the `tesseract` binary)
+  dpi: 200
+  language: eng
+  min_chars_per_page: 25            # a page with fewer characters than this is treated as scanned
+
+memory:
+  sqlite_database_path: data/memory.db
+  limit: 3                          # weak topics shown in "Analyze My Performance"
+
+rag_core:
+  chunking:
+    chunk_size: 1000
+    chunk_overlap: 100
+  embedding:
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    device: auto                    # auto | cpu | cuda
+    batch_size: 32
+  database:
+    persist_directory: data/vector_store
+    collection_name: study_notes
+  retriever:
+    k: 5                            # passages handed to the LLM
+    min_score: 0.30                 # cosine similarity below this = "not in your notes"
+    max_per_source: 2               # at most this many passages from a single document
+
+llm:
+  # auto        -> CUDA GPU if present, else a running Ollama, else retrieval-only mode
+  # ollama      -> local CPU-friendly models (https://ollama.com), nothing leaves your machine
+  # gemini      -> Google Gemini API (needs GOOGLE_API_KEY; retrieved passages are sent to Google)
+  # transformers-> 4-bit Hugging Face model on an NVIDIA GPU (e.g. Colab)
+  # none        -> no LLM: chat returns the best-matching passages from your notes
+  provider: auto
+  temperature: 0.2
+  max_new_tokens: 700
+  ollama:
+    model: "llama3.2:3b"
+    base_url: "http://localhost:11434"
+    num_ctx: 4096
+  gemini:
+    model: "gemini-flash-latest"
+    api_key_env: GOOGLE_API_KEY
+  transformers:
+    model: "mistralai/Mistral-7B-Instruct-v0.3"
+    load_in_4bit: true
+
+chat:
+  history_turns: 3                  # previous exchanges included for follow-up questions
 
 features:
-    quiz:
-        similarity_threshold: 0.85
+  quiz:
+    similarity_threshold: 0.85      # cosine similarity for a "correct" answer
+    close_margin: 0.15              # within this margin below the threshold = "close"
+  study:
+    max_context_chunks: 8           # passages sampled for a summary / flashcards
+    flashcards: 8
 
 voice:
-    whisper_model: "openai/whisper-base"
+  enabled: true
+  whisper_model: "openai/whisper-base"

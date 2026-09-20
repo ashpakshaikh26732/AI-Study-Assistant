@@ -1,45 +1,53 @@
-import sys
+"""Embedding model access (shared, cached, GPU-aware)."""
+from __future__ import annotations
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-sys.path.append(repo_path)
+import functools
+import logging
 
-from langchain_huggingface.embeddings import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
+log = logging.getLogger(__name__)
 
-def embed_and_store(documents, config):
-    """
-    Embeds a list of text documents and stores them in a persistent
-    ChromaDB vector store.
 
-    This function takes a list of LangChain Document objects, initializes a
-    Hugging Face embedding model specified in the configuration, and then
-    uses LangChain's Chroma class to perform the embedding and storage in
-    a single operation. The resulting vector database is saved to the
-    directory specified in the configuration, making it persistent.
+def resolve_device(preference: str = "auto") -> str:
+    """``auto`` -> ``cuda`` when a GPU is visible, else ``cpu``."""
+    if preference and preference != "auto":
+        return preference
+    try:
+        import torch
 
-    Args:
-        documents (list[langchain_core.documents.base.Document]): A list of
-            LangChain Document objects to be embedded and stored. Each
-            document should contain page_content and metadata.
-        config (dict): The project's configuration dictionary. It must
-            contain the embedding model name, the database persist
-            directory, and the collection name under the 'rag_core' key.
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:  # torch missing or broken
+        return "cpu"
 
-    Side Effects:
-        - Downloads the specified Hugging Face embedding model if it's not
-          already cached.
-        - Creates or updates a ChromaDB database at the location specified
-          by `persist_directory` in the config.
-        - Prints status messages from the underlying libraries to the console.
-    """
-    embeddings = HuggingFaceEmbeddings(
-        model_name=config['rag_core']['embedding']['model_name']
-    )
-    
-    Chroma.from_documents(
-        documents=documents,
-        embedding=embeddings,
-        persist_directory=config['rag_core']['database']['persist_directory'],
-        collection_name=config['rag_core']['database']['collection_name']
+
+@functools.lru_cache(maxsize=4)
+def _build_embeddings(model_name: str, device: str, batch_size: int):
+    from langchain_huggingface import HuggingFaceEmbeddings
+
+    log.info("Loading embedding model %s on %s", model_name, device)
+    return HuggingFaceEmbeddings(
+        model_name=model_name,
+        model_kwargs={"device": device},
+        # Normalised vectors make cosine similarity a plain dot product and keep
+        # scores comparable between retrieval and quiz grading.
+        encode_kwargs={"normalize_embeddings": True, "batch_size": batch_size},
     )
 
+
+def get_embeddings(config: dict):
+    """The (process-wide cached) embedding model described by the config."""
+    emb = config["rag_core"]["embedding"]
+    return _build_embeddings(
+        emb["model_name"], resolve_device(emb.get("device", "auto")), int(emb.get("batch_size", 32))
+    )
+
+
+def embed_and_store(documents, config: dict, embeddings=None) -> None:
+    """Add chunk Documents to the vector store (kept for backward compatibility).
+
+    Prefer :func:`src.rag_core.indexer.sync_index`, which is incremental.
+    """
+    from src.rag_core.chunker import chunk_id
+    from src.rag_core.vectorstore import get_vector_store
+
+    store = get_vector_store(config, embeddings)
+    store.add_documents(documents, ids=[chunk_id(d) for d in documents])

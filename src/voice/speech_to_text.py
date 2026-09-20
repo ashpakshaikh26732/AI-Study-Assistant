@@ -1,52 +1,64 @@
-import sys
+"""Speech-to-text with Whisper (CPU or GPU, no ffmpeg needed for WAV input)."""
+from __future__ import annotations
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
-    
-from transformers import pipeline
+import io
+import wave
 
-def load_whisper_model(config):
+import numpy as np
+
+WHISPER_RATE = 16000
+
+
+def load_whisper_model(config: dict):
+    """Load the Whisper ASR pipeline on the GPU if there is one, else the CPU.
+
+    Load it lazily (first time the mic is used) - it isn't needed for typed chat.
     """
-    Loads and initializes the Whisper ASR (Automatic Speech Recognition) pipeline.
+    import torch
+    from transformers import pipeline
 
-    This function creates a transformers pipeline for speech recognition using
-    the Whisper model specified in the configuration. It's designed to be
-    called once and have its result cached or reused to avoid reloading the
-    model repeatedly.
-
-    Args:
-        config (dict): The project's configuration dictionary, which must
-                     contain the Hugging Face model name for Whisper under
-                     the 'voice.whisper_model' key.
-
-    Returns:
-        transformers.pipelines.base.Pipeline: The initialized ASR pipeline
-        object, ready to be used for transcription.
-    """
-    asr_pipeline = pipeline(
+    device = 0 if torch.cuda.is_available() else -1
+    return pipeline(
         "automatic-speech-recognition",
-        model=config['voice']['whisper_model'],
+        model=config["voice"]["whisper_model"],
         chunk_length_s=30,
-        device=0  
+        device=device,
     )
-    return asr_pipeline
 
-def transcribe_audio(audio_bytes, asr_pipeline):
+
+def wav_bytes_to_array(audio_bytes: bytes) -> tuple[np.ndarray, int]:
+    """Decode 16-bit PCM WAV bytes to a mono float32 array in [-1, 1] plus its sample rate."""
+    with wave.open(io.BytesIO(audio_bytes), "rb") as wav:
+        rate, channels, width = wav.getframerate(), wav.getnchannels(), wav.getsampwidth()
+        frames = wav.readframes(wav.getnframes())
+    if width != 2:
+        raise ValueError(f"Unsupported WAV sample width: {width * 8}-bit (need 16-bit)")
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    return samples, rate
+
+
+def resample(samples: np.ndarray, rate: int, target: int = WHISPER_RATE) -> np.ndarray:
+    """Linear-interpolation resample (plenty for speech)."""
+    if rate == target or len(samples) == 0:
+        return samples
+    new_len = int(round(len(samples) * target / rate))
+    old_x = np.linspace(0.0, 1.0, num=len(samples), endpoint=False)
+    new_x = np.linspace(0.0, 1.0, num=new_len, endpoint=False)
+    return np.interp(new_x, old_x, samples).astype(np.float32)
+
+
+def transcribe_audio(audio_bytes: bytes, asr_pipeline) -> str:
+    """Transcribe recorded audio to text; returns "" if nothing was recognised.
+
+    WAV input (what the mic widget produces with ``format="wav"``) is decoded
+    in-process. Other formats are handed to the pipeline as-is, which needs ffmpeg.
     """
-    Transcribes a given audio input into text using the loaded Whisper pipeline.
-
-    Args:
-        audio_bytes (bytes): The raw audio data captured from a source like a
-                             microphone.
-        asr_pipeline (transformers.pipelines.base.Pipeline): The pre-loaded
-                      ASR pipeline object from the `load_whisper_model` function.
-
-    Returns:
-        str: The transcribed text from the audio. Returns an empty string
-             if transcription fails or produces no text.
-    """
-    
-    result = asr_pipeline(audio_bytes)
-    transcribed_text = result.get("text", "").strip()
-    return transcribed_text
+    try:
+        samples, rate = wav_bytes_to_array(audio_bytes)
+        audio = {"raw": resample(samples, rate), "sampling_rate": WHISPER_RATE}
+    except (wave.Error, ValueError, EOFError):
+        audio = audio_bytes
+    result = asr_pipeline(audio)
+    return (result.get("text", "") if isinstance(result, dict) else "").strip()

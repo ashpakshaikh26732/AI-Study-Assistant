@@ -1,70 +1,141 @@
-import sys
+"""Flashcard generation with tolerant JSON parsing.
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
-
-from langchain.prompts import PromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.pydantic_v1 import BaseModel, Field
-from typing import List
-
-class Flashcard(BaseModel):
-    """A single flashcard with a question and an answer."""
-    question: str = Field(description="The question for the flashcard.")
-    answer: str = Field(description="The answer to the flashcard's question.")
-
-class Flashcards(BaseModel):
-    """A list of flashcard objects."""
-    flashcards: List[Flashcard] = Field(description="A list of flashcards generated from the text.")
-
-def get_flashcard_prompt():
-    """
-    Creates and returns the prompt template for the flashcard generation chain.
-    """
-    prompt_string = """
-You are an expert educator and study assistant. Your task is to analyze the provided text from a student's notes and generate a series of flashcards to help them study.
-
-Based on the context below, create a list of clear and concise question-and-answer pairs that cover the most important concepts, definitions, and key facts in the text.
-
-{format_instructions}
-
-Context:
----
-{context}
----
+Small local models often wrap JSON in prose or code fences, so instead of a
+strict parser we pull the JSON out of whatever came back, and fall back to
+regex-extracting question/answer pairs. Cards are produced in small batches so
+the UI can show them as they arrive.
 """
-    prompt_template = PromptTemplate(
-        template=prompt_string,
-        input_variables=["context"],
+from __future__ import annotations
 
-        partial_variables={"format_instructions": JsonOutputParser(pydantic_object=Flashcards).get_format_instructions()}
-    )
-    return prompt_template
+import json
+import re
+from dataclasses import asdict, dataclass
+from typing import Iterator, Optional
 
-def create_flashcard_chain(llm):
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from src.features.generator import chunk_text_of
+from src.rag_core.vectorstore import sample_evenly
+
+
+@dataclass
+class Flashcard:
+    question: str
+    answer: str
+    source: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+FLASHCARD_SYSTEM = "You write accurate study flashcards from a student's notes. You reply with JSON only."
+
+FLASHCARD_PROMPT = """From the excerpts below, write {n} flashcards that test the most important concepts, definitions and facts.
+
+Rules:
+- Each question must be answerable from the excerpts alone.
+- Keep answers to one or two sentences.
+- Reply with ONLY a JSON array, no other text, in exactly this shape:
+[{{"question": "...", "answer": "..."}}]
+
+Excerpts:
+{context}
+"""
+
+_PAIR_RE = re.compile(
+    r'"question"\s*:\s*"(?P<q>(?:[^"\\]|\\.)*)"\s*,\s*"answer"\s*:\s*"(?P<a>(?:[^"\\]|\\.)*)"', re.DOTALL
+)
+
+
+def _clean(value) -> str:
+    return re.sub(r"\s+", " ", str(value)).strip()
+
+
+def parse_flashcards(text: str) -> list[Flashcard]:
+    """Extract flashcards from raw model output; returns [] if nothing usable."""
+    if not text:
+        return []
+    text = re.sub(r"```(?:json)?", "", text)
+
+    candidates = []
+    for opener, closer in (("[", "]"), ("{", "}")):
+        start, end = text.find(opener), text.rfind(closer)
+        if start != -1 and end > start:
+            candidates.append(text[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            data = data.get("flashcards", data.get("cards", [data]))
+        cards = [
+            Flashcard(_clean(item["question"]), _clean(item["answer"]))
+            for item in data
+            if isinstance(item, dict) and item.get("question") and item.get("answer")
+        ]
+        if cards:
+            return cards
+
+    # Truncated / malformed JSON: salvage whatever complete pairs are present.
+    cards = []
+    for m in _PAIR_RE.finditer(text):
+        try:
+            q, a = json.loads(f'"{m.group("q")}"'), json.loads(f'"{m.group("a")}"')
+        except json.JSONDecodeError:
+            q, a = m.group("q"), m.group("a")
+        if q.strip() and a.strip():
+            cards.append(Flashcard(_clean(q), _clean(a)))
+    return cards
+
+
+def _generate_batch(llm, context: str, n: int) -> list[Flashcard]:
+    messages = [
+        SystemMessage(content=FLASHCARD_SYSTEM),
+        HumanMessage(content=FLASHCARD_PROMPT.format(n=n, context=context)),
+    ]
+    raw = "".join(chunk_text_of(p) for p in llm.stream(messages))
+    return parse_flashcards(raw)
+
+
+def iter_flashcards(llm, chunks, n_cards: int = 8, group_size: int = 2, max_chunks: int = 8) -> Iterator[list[Flashcard]]:
+    """Yield lists of new flashcards, one list per LLM call, until ``n_cards`` exist.
+
+    ``chunks`` are LangChain Documents. An even sample of at most ``max_chunks``
+    is split into groups of ``group_size`` passages, one LLM call per group.
     """
-    Builds and returns a chain that generates flashcards from a given context.
+    sample = sample_evenly(list(chunks), max_chunks)
+    groups = [sample[i : i + group_size] for i in range(0, len(sample), group_size)] or []
+    if not groups:
+        return
+    per_group = max(2, -(-n_cards // len(groups)))  # ceil division, at least 2
+    seen: set[str] = set()
+    produced = 0
+    for group in groups:
+        if produced >= n_cards:
+            break
+        context = "\n\n---\n\n".join(c.page_content for c in group)
+        source = group[0].metadata.get("title", "")
+        new = []
+        for card in _generate_batch(llm, context, per_group):
+            key = card.question.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            card.source = source
+            new.append(card)
+        new = new[: n_cards - produced]
+        produced += len(new)
+        if new:
+            yield new
 
-    The chain takes a block of text (context), formats it with a specialized
-    prompt, sends it to the language model, and then uses a JsonOutputParser
-    to convert the LLM's string output into a structured Python object.
 
-    Args:
-        llm (langchain_core.language_models.base.BaseLanguageModel): The
-            initialized language model object (e.g., HuggingFacePipeline).
+def generate_flashcards(llm, chunks, n_cards: int = 8, **kwargs) -> list[Flashcard]:
+    """All flashcards at once (non-streaming)."""
+    return [card for batch in iter_flashcards(llm, chunks, n_cards, **kwargs) for card in batch]
 
-    Returns:
-        langchain.chains.base.Chain: A fully configured chain that, when
-        invoked with a context, returns a Pydantic 'Flashcards' object.
-    """
 
-    parser = JsonOutputParser(pydantic_object=Flashcards)
-    
-
-    prompt = get_flashcard_prompt()
-
-    flashcard_chain = prompt | llm | parser
-    
-    return flashcard_chain
-
+def cards_from_dicts(items: Optional[list]) -> list[Flashcard]:
+    """Rebuild cards from cached JSON."""
+    return [Flashcard(**item) for item in (items or [])]

@@ -53,3 +53,15 @@ Thumbs.db
 *.egg-info/
 *.egg
 
+
+
+# --- Secrets & personal config ---
+# `.env/` above only matches a *folder*; these match the actual files.
+.env
+*.env
+config.local.yaml
+
+# --- Test / tool caches ---
+.pytest_cache/
+.ipynb_checkpoints/
+test_memory.db

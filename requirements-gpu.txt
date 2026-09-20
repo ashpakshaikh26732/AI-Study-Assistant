@@ -1,0 +1,4 @@
+# Extra packages for running the 4-bit Hugging Face model on an NVIDIA GPU (e.g. Colab).
+# Install after requirements.txt:  pip install -r requirements-gpu.txt
+accelerate
+bitsandbytes

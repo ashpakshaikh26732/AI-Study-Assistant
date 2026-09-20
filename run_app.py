@@ -1,36 +1,29 @@
+"""Launch the AI Study Assistant web app.
+
+Usage:
+    python run_app.py                       # http://localhost:8501
+    python run_app.py --server.port 8600    # any extra flags go straight to Streamlit
+"""
 import subprocess
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
 
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
-
-def main():
-    """
-    Main function to launch the AI Study Assistant Streamlit application.
-
-    This script acts as a simple, user-friendly wrapper to start the app.
-    It uses the subprocess module to execute the `streamlit run` command,
-    targeting the main application script in the `src/app/` directory.
-    """
-    print("=====================================================")
-    print("🚀 Launching the AI Study Assistant...")
-    print("=====================================================")
-
-
-    command = [sys.executable, "-m", "streamlit", "run", "src/app/main.py"]
-
+def main(extra_args=None) -> int:
+    extra_args = sys.argv[1:] if extra_args is None else extra_args
+    command = [sys.executable, "-m", "streamlit", "run", str(ROOT / "src" / "app" / "main.py"), *extra_args]
+    print("Launching the AI Study Assistant...")
     try:
-
-        subprocess.run(command, check=True)
+        return subprocess.run(command, cwd=ROOT).returncode
     except FileNotFoundError:
-        print("\n❌ ERROR: 'streamlit' command not found.")
-        print("Please ensure Streamlit is installed in your environment (`pip install streamlit`).")
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ ERROR: The Streamlit application exited with an error: {e}")
+        print("Could not start Python/Streamlit. Install dependencies with: pip install -r requirements.txt")
+        return 1
     except KeyboardInterrupt:
-        print("\n👋 Application stopped by user.")
+        print("\nStopped.")
+        return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,14 +1,34 @@
-langchain
-chromadb
-pytesseract
-PyMuPDF
-Pillow
-streamlit
+# Core app - works on a laptop with no GPU.
+# Install:  pip install -r requirements.txt
+#
+# On a GPU machine / Colab also install requirements-gpu.txt.
+# For local generation on CPU, install Ollama (https://ollama.com) and `ollama pull llama3.2:3b`.
+
+streamlit>=1.50
+pandas
+altair
 numpy
 PyYAML
+
+# RAG stack (LangChain 0.3 and 1.x both work: only langchain-core APIs are used)
+langchain-core>=0.3
+langchain-text-splitters
 langchain-chroma
-langchain-huggingface 
-sentence_transformers
-streamlit
+langchain-huggingface
+langchain-ollama
+chromadb
+sentence-transformers
+transformers
+torch
+pillow>=10            # transformers needs a recent Pillow (old distro packages break it)
+
+# Document parsing
+pymupdf
+pytesseract           # also needs the `tesseract` binary for OCR (optional): sudo apt install tesseract-ocr
+
+# Voice (optional - the app hides these features if they are missing)
 streamlit-mic-recorder
+gTTS
+
+# Tests
 pytest

@@ -1,44 +1,39 @@
+"""Semantic grading of quiz answers (meaning over exact wording)."""
+from __future__ import annotations
+
 import numpy as np
-import sys
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
 
-def grade_user_answer(user_answer, correct_answer, embedding_model, config):
-    """
-    Grades a user's answer by comparing its semantic meaning to the correct
-    answer, rather than relying on an exact string match.
+def similarity_score(user_answer: str, correct_answer: str, embedding_model) -> float:
+    """Cosine similarity (-1..1) between the two answers' embeddings; 0 for an empty answer."""
+    if not user_answer or not user_answer.strip():
+        return 0.0
+    user_vec, correct_vec = embedding_model.embed_documents([user_answer, correct_answer])
+    denom = np.linalg.norm(user_vec) * np.linalg.norm(correct_vec)
+    if denom == 0:
+        return 0.0
+    return float(np.dot(user_vec, correct_vec) / denom)
 
-    This function performs the following steps:
-    1.  It uses a pre-initialized sentence-transformer model to embed both
-        the user's answer and the correct answer into numerical vectors.
-    2.  It calculates the cosine similarity between these two vectors. Cosine
-        similarity is a measure of how similar the directions of two vectors
-        are, which corresponds to semantic similarity in this context.
-    3.  It compares the resulting similarity score against a predefined
-        threshold from the configuration file.
 
-    Args:
-        user_answer (str): The answer provided by the user.
-        correct_answer (str): The ground truth answer for the question.
-        embedding_model (langchain_huggingface.embeddings.HuggingFaceEmbeddings):
-            The initialized embedding model object used to convert text to vectors.
-        config (dict): The project's configuration dictionary, which must
-                     contain the similarity threshold under the key
-                     'features.quiz.similarity_threshold'.
+def grade_answer(user_answer: str, correct_answer: str, embedding_model, config: dict) -> tuple[str, float]:
+    """Grade an answer.
 
     Returns:
-        bool: True if the cosine similarity is greater than or equal to the
-              threshold (indicating the answer is correct), False otherwise.
+        ``(verdict, score)`` where verdict is ``"correct"`` (score >= threshold),
+        ``"close"`` (within ``close_margin`` below it) or ``"incorrect"``.
     """
-    embeddings = embedding_model.embed_documents([user_answer, correct_answer])
-    user_answer_embedding = embeddings[0]
-    correct_answer_embedding = embeddings[1]
+    quiz_cfg = config["features"]["quiz"]
+    score = similarity_score(user_answer, correct_answer, embedding_model)
+    threshold = quiz_cfg["similarity_threshold"]
+    if score >= threshold:
+        return "correct", score
+    if score >= threshold - quiz_cfg.get("close_margin", 0.15):
+        return "close", score
+    return "incorrect", score
 
-    cosine_similarity = np.dot(user_answer_embedding, correct_answer_embedding) / (np.linalg.norm(user_answer_embedding) * np.linalg.norm(correct_answer_embedding))
 
-    if cosine_similarity >= config['features']['quiz']['similarity_threshold']:
-        return True
-    
-    return False
+def grade_user_answer(user_answer, correct_answer, embedding_model, config) -> bool:
+    """True if the answer's meaning matches closely enough (kept for compatibility)."""
+    return similarity_score(user_answer, correct_answer, embedding_model) >= config["features"]["quiz"][
+        "similarity_threshold"
+    ]

@@ -1,86 +1,60 @@
-import sys
+"""Topic summaries.
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
-
-from langchain.prompts import PromptTemplate
-from langchain.chains.summarize import load_summarize_chain
-
-def get_summarizer_prompts():
-    """
-    Creates and returns the prompt templates for the map-reduce summarization chain.
-
-    This function defines two distinct prompts:
-    1. A 'map' prompt to extract key points from individual document chunks.
-    2. A 'combine' prompt to synthesize a final summary from the collection
-       of key points.
-
-    Returns:
-        tuple[PromptTemplate, PromptTemplate]: A tuple containing the
-        map_prompt_template and the combine_prompt_template.
-    """
-
-    map_prompt_string = """
-You are an expert academic assistant skilled at distilling complex information. Your task is to analyze the following text from a student's notes and extract the most critical information.
-
-Focus on identifying and clearly stating the main concepts, key definitions, important formulas, and core principles. Ignore any filler text, examples, or conversational parts. Present the output as a concise list of key points.
-
-Text:
-"{text}"
-
-Concise Key Points:
+The first version map-reduced over *every* chunk of a course - dozens of LLM
+calls, minutes on CPU, and easy to overflow the context window. Instead we take
+an evenly spread sample of the course's passages and summarise them in a single
+streamed call.
 """
-    map_prompt_template = PromptTemplate(
-        template=map_prompt_string,
-        input_variables=["text"]
-    )
+from __future__ import annotations
 
-    combine_prompt_string = """
-You are a master of synthesis, tasked with creating a final, high-quality summary from a collection of key points extracted from a student's notes.
+from typing import Iterator
 
-Your goal is to weave these individual points into a single, coherent, and well-organized summary. The final output should be easy to read, logically structured, and cover all the essential information from the provided points. Start with a brief overview, then elaborate on the key topics.
+from langchain_core.messages import HumanMessage, SystemMessage
 
-Collection of Key Points:
-"{text}"
+from src.features.generator import chunk_text_of
+from src.rag_core.vectorstore import sample_evenly
 
-Comprehensive Final Summary:
+SUMMARY_SYSTEM = (
+    "You are an expert academic assistant. You summarise a student's own notes "
+    "faithfully - never invent content that is not in the excerpts."
+)
+
+SUMMARY_PROMPT = """Below are excerpts from the student's notes on "{topic}".
+
+Write a well-organised study summary:
+1. One or two sentences of overview.
+2. The key concepts, each with a short explanation.
+3. Important formulas, definitions or rules (plain text).
+4. A short "remember this" list of the 3-5 most important takeaways.
+
+Excerpts:
+{context}
 """
-    combine_prompt_template = PromptTemplate(
-        template=combine_prompt_string,
-        input_variables=["text"]
-    )
-    
-    return map_prompt_template, combine_prompt_template
 
-def create_summarizer_chain(llm, config):
+
+def build_study_context(chunks, max_chunks: int = 8, max_chars: int = 7000) -> tuple[str, list]:
+    """Join an even sample of ``chunks`` (Documents) into one prompt block.
+
+    Returns ``(context_text, chunks_used)``.
     """
-    Builds and returns a summarization chain using the map-reduce strategy.
+    used, total = [], 0
+    for chunk in sample_evenly(list(chunks), max_chunks):
+        if total + len(chunk.page_content) > max_chars and used:
+            break
+        used.append(chunk)
+        total += len(chunk.page_content)
+    context = "\n\n---\n\n".join(c.page_content for c in used)
+    return context, used
 
-    This function reuses the provided language model (LLM) and constructs a
-    specialized chain for summarization. It uses custom prompts for both the
-    'map' and 'combine' steps to ensure high-quality, structured summaries.
 
-    Args:
-        llm (langchain_core.language_models.base.BaseLanguageModel): The
-            initialized language model object (e.g., HuggingFacePipeline)
-            that will be used for summarization.
-        config (dict): The project's configuration dictionary. This is included
-                     for potential future use, such as adding specific
-                     summarizer settings.
-
-    Returns:
-        langchain.chains.base.Chain: A fully configured summarization chain
-        object, ready to be invoked with a list of documents.
-    """
-    map_prompt_template, combine_prompt_template = get_summarizer_prompts()
-
-    summarization_chain = load_summarize_chain(
-        llm,
-        chain_type='map_reduce',
-        map_prompt=map_prompt_template,
-        combine_prompt=combine_prompt_template,
-        verbose=True
-    )
-
-    return summarization_chain
+def stream_summary(llm, topic: str, chunks, max_chunks: int = 8) -> Iterator[str]:
+    """Yield a summary of ``topic`` piece by piece."""
+    context, _ = build_study_context(chunks, max_chunks)
+    messages = [
+        SystemMessage(content=SUMMARY_SYSTEM),
+        HumanMessage(content=SUMMARY_PROMPT.format(topic=topic, context=context)),
+    ]
+    for piece in llm.stream(messages):
+        text = chunk_text_of(piece)
+        if text:
+            yield text

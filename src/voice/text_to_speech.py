@@ -1,38 +1,41 @@
-import sys
+"""Text-to-speech with gTTS (needs an internet connection)."""
+from __future__ import annotations
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-if repo_path not in sys.path:
-    sys.path.append(repo_path)
-    
-from gtts import gTTS
+import functools
 import io
+import logging
+import re
+from typing import Optional
 
-def convert_text_to_speech(text_to_speak):
-    """
-    Converts a given text string into spoken audio data (MP3 format).
+log = logging.getLogger(__name__)
 
-    This function uses the gTTS (Google Text-to-Speech) library to generate
-    audio from text. To avoid writing temporary files to disk, it saves the
-    resulting MP3 data directly into an in-memory binary buffer (io.BytesIO).
+MAX_SPOKEN_CHARS = 1500  # keep spoken replies short - long ones are slow to synthesise
 
-    Args:
-        text_to_speak (str): The text content that needs to be converted
-                             into speech.
 
-    Returns:
-        bytes: The raw byte data of the generated MP3 audio, ready to be
-               played by an audio player component. Returns None if the
-               input text is empty or an error occurs.
-    """
-    if not text_to_speak:
+def _speakable(text: str) -> str:
+    """Strip markdown/citation markers so they aren't read out loud."""
+    text = re.sub(r"\[\d+\]", "", text)
+    text = re.sub(r"[*_`#>]+", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:MAX_SPOKEN_CHARS]
+
+
+@functools.lru_cache(maxsize=32)
+def _synthesize(text: str) -> Optional[bytes]:
+    from gtts import gTTS
+
+    buffer = io.BytesIO()
+    gTTS(text, lang="en").write_to_fp(buffer)
+    return buffer.getvalue()
+
+
+def convert_text_to_speech(text_to_speak: str) -> Optional[bytes]:
+    """MP3 bytes for ``text_to_speak``, or None if empty / offline / gTTS unavailable."""
+    text = _speakable(text_to_speak or "")
+    if not text:
         return None
-        
     try:
-        tts = gTTS(text_to_speak, lang='en')
-        mp3_data_buffer = io.BytesIO()
-        tts.write_to_fp(mp3_data_buffer)
-        mp3_data_buffer.seek(0)
-        return mp3_data_buffer.getvalue()
-    except Exception as e:
-        print(f"An error occurred during text-to-speech conversion: {e}")
+        return _synthesize(text)
+    except Exception as exc:  # no network, gTTS missing, rate-limited...
+        log.warning("Text-to-speech failed: %s", exc)
         return None

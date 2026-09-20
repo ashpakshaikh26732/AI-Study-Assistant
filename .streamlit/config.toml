@@ -1,0 +1,13 @@
+# Separate light/dark sections keep the app following the viewer's system theme
+# (a single [theme] block would pin it to one mode and break theme detection).
+[theme.light]
+primaryColor = "#2a78d6"
+
+[theme.dark]
+primaryColor = "#3987e5"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

@@ -1,45 +1,93 @@
-import sys
+"""Semantic retrieval with topic / note-type filtering and relevance scores."""
+from __future__ import annotations
 
-repo_path = "/content/drive/MyDrive/AI-Study-Assistant"
-sys.path.append(repo_path)
+import re
+from dataclasses import dataclass, field
+from typing import Optional
 
-from langchain_chroma import Chroma
-from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+from src.rag_core.vectorstore import build_filter, collection_space, distance_to_similarity, get_vector_store
 
-def create_retriever(config):
-    """
-    Creates a retriever object from a pre-existing, persistent ChromaDB
-    vector store.
 
-    This function initializes the same Hugging Face embedding model that was
-    used for storing the data. It then connects to the ChromaDB database
-    persisted on disk and creates a retriever object from it. The retriever
-    is configured with search parameters, such as 'k' for the number of
-    documents to return, based on the provided configuration.
+@dataclass
+class RetrievedChunk:
+    """A retrieved passage plus how well it matched (cosine similarity, 0..1)."""
+
+    text: str
+    score: float
+    metadata: dict = field(default_factory=dict)
+
+    @property
+    def source(self) -> str:
+        return self.metadata.get("source", "unknown")
+
+    @property
+    def title(self) -> str:
+        return self.metadata.get("title") or self.source
+
+    @property
+    def course(self) -> str:
+        return self.metadata.get("course", "")
+
+    @property
+    def notes_type(self) -> str:
+        return self.metadata.get("notes_type", "")
+
+
+def snippet(text: str, limit: int = 420) -> str:
+    """One-line plain-text preview of a passage (markdown heading marks removed)."""
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def retrieve(
+    store,
+    query: str,
+    k: int = 5,
+    course: Optional[str] = None,
+    notes_types: Optional[list] = None,
+    min_score: float = 0.0,
+    max_per_source: int = 0,
+    fetch_factor: int = 4,
+) -> list[RetrievedChunk]:
+    """Top-``k`` passages for ``query``, best first.
 
     Args:
-        config (dict): The project's configuration dictionary. It must
-                     contain the embedding model name, the database persist
-                     directory, the collection name, and retriever settings
-                     (like 'k') under the 'rag_core' key.
-
-    Returns:
-        langchain_core.vectorstores.VectorStoreRetriever: A configured
-        retriever object ready to be used for fetching relevant documents
-        from the vector store in response to a query.
+        store: Chroma store from :func:`get_vector_store`.
+        course / notes_types: Restrict the search (metadata filter applied
+            *inside* the DB, so it is fast and exact).
+        min_score: Drop passages with cosine similarity below this.
+        max_per_source: Cap passages per document (0 = unlimited) so one long
+            document can't crowd out everything else.
+        fetch_factor: Over-fetch ``k * fetch_factor`` candidates before the
+            score/diversity filters.
     """
-    embeddings = HuggingFaceEmbeddings(
-        model_name=config['rag_core']['embedding']['model_name']
+    query = (query or "").strip()
+    if not query:
+        return []
+    space = collection_space(store)
+    hits = store.similarity_search_with_score(
+        query, k=max(k, 1) * max(fetch_factor, 1), filter=build_filter(course, notes_types)
     )
-    
-    vector_store = Chroma(
-        collection_name=config['rag_core']['database']['collection_name'],
-        embedding_function=embeddings,
-        persist_directory=config['rag_core']['database']['persist_directory']
-    )
-    
-    retriever = vector_store.as_retriever(
-        search_kwargs={"k": config['rag_core']['retriever']['k']}
-    )
-    
-    return retriever
+    results: list[RetrievedChunk] = []
+    per_source: dict = {}
+    for doc, distance in sorted(hits, key=lambda h: h[1]):
+        score = distance_to_similarity(distance, space)
+        if score < min_score:
+            continue
+        source = doc.metadata.get("source", "unknown")
+        if max_per_source and per_source.get(source, 0) >= max_per_source:
+            continue
+        per_source[source] = per_source.get(source, 0) + 1
+        results.append(RetrievedChunk(text=doc.page_content, score=score, metadata=doc.metadata))
+        if len(results) >= k:
+            break
+    return results
+
+
+def create_retriever(config: dict):
+    """A plain LangChain retriever over the store (kept for backward compatibility)."""
+    store = get_vector_store(config)
+    return store.as_retriever(search_kwargs={"k": config["rag_core"]["retriever"]["k"]})
